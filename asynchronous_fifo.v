@@ -1,122 +1,122 @@
 // Asynchronous memory with gray code pointer exchange
 
-module myAsyncFIFO #(
-  parameter MyDepthSize = 8,
-  parameter MyArraySize = 4
+module AsyncFIFO #(
+  parameter DepthSize = 8,
+  parameter ArraySize = 4
 ) (
-  input   myWreq, myWclk, myWrst_n,
-  input   myRreq, myRclk, myRrst_n,
-  input   [MyDepthSize-1:0] myWdata,
-  output  [MyDepthSize-1:0] myRdata,
-  output  reg myWfull,
-  output  reg myRempty
+  input   wreq, wclk, wrst_n,
+  input   rreq, rclk, rrst_n,
+  input   [DepthSize-1:0] wdata,
+  output  [DepthSize-1:0] rdata,
+  output  reg wfull,
+  output  reg rempty
 );
 
-reg     [MyArraySize:0]   myWd2Rptr, myWd1Rptr, myRptr;
-reg     [MyArraySize:0]   myRd2Wptr, myRd1Wptr, myWptr;
-wire    myRemptyVal;
-wire    [MyArraySize:0] myRptrNxt;
-wire    [MyArraySize-1:0] myRaddr;
-reg     [MyArraySize:0] myRbin;
-wire    [MyArraySize:0] myRbinNxt;
-wire    [MyArraySize-1:0] myWaddr;
-reg     [MyArraySize:0] myWbin;
-wire    [MyArraySize:0] myWbinNxt;
-wire    [MyArraySize:0] myWptrNxt;
+  reg     [ArraySize:0]   wd2rptr, wd1rptr, rptr;
+  reg     [ArraySize:0]   rd2wptr, rd1wptr, wptr;
+  wire    rempty_val;
+  wire    [ArraySize:0] rptr_nxt;
+  wire    [ArraySize-1:0] raddr;
+  reg     [ArraySize:0] rbin;
+  wire    [ArraySize:0] rbin_nxt;
+  wire    [ArraySize-1:0] waddr;
+  reg     [ArraySize:0] wbin;
+  wire    [ArraySize:0] wbin_nxt;
+  wire    [ArraySize:0] wptr_nxt;
 
-// Synchronizing rptr to wclk
-always @(posedge myWclk or negedge myWrst_n) begin
-  if (!myWrst_n)
-    {myWd2Rptr, myWd1Rptr} <= 2'b0;
-  else
-    {myWd2Rptr, myWd1Rptr} <= {myWd1Rptr, myRptr};
-end
+  // Synchronizing rptr to wclk
+  always @(posedge wclk or negedge wrst_n) begin
+    if (!wrst_n)
+      {wd2rptr, wd1rptr} <= 2'b0;
+    else
+      {wd2rptr, wd1rptr} <= {wd1rptr, rptr};
+  end
 
-// Synchronizing wptr to rclk
-always @(posedge myRclk or negedge myRrst_n) begin
-  if (!myRrst_n)
-    {myRd2Wptr, myRd1Wptr} <= 2'b0;
-  else
-    {myRd2Wptr, myRd1Wptr} <= {myRd1Wptr, myWptr};
-end
+  // Synchronizing wptr to rclk
+  always @(posedge rclk or negedge rrst_n) begin
+    if (!rrst_n)
+      {rd2wptr, rd1wptr} <= 2'b0;
+    else
+      {rd2wptr, rd1wptr} <= {rd1wptr, wptr};
+  end
 
-// Generating myRempty condition
-assign myRemptyVal = (myRptrNxt == myRd2Wptr); 
+  // Generating rempty condition
+  assign rempty_val = (rptr_nxt == rd2wptr); 
 
-always @(posedge myRclk or negedge myRrst_n) begin
-  if (!myRrst_n)
-    myRempty <= 1'b0;
-  else
-    myRempty <= myRemptyVal;
-end
+  always @(posedge rclk or negedge rrst_n) begin
+    if (!rrst_n)
+      rempty <= 1'b0;
+    else
+      rempty <= rempty_val;
+  end
 
-// Generating read address for myFifoMem
-assign myRbinNxt = myRbin + (myRreq & ~myRempty);
+  // Generating read address for FifoMem
+  assign rbin_nxt = rbin + (rreq & ~rempty);
 
-always @(posedge myRclk or negedge myRrst_n) begin
-  if (!myRrst_n)
-    myRbin <= 0;
-  else
-    myRbin <= myRbinNxt;
-end
+  always @(posedge rclk or negedge rrst_n) begin
+    if (!rrst_n)
+      rbin <= 0;
+    else
+      rbin <= rbin_nxt;
+  end
 
-assign myRaddr = myRbin[MyArraySize-1:0]; 
+  assign raddr = rbin[ArraySize-1:0]; 
 
-// Generating myRptr to send to myWclk domain
-// Convert from binary to gray
-assign myRptrNxt = myRbinNxt ^ (myRbinNxt >> 1);
+  // Generating rptr to send to wclk domain
+  // Convert from binary to gray
+  assign rptr_nxt = rbin_nxt ^ (rbin_nxt >> 1);
 
-always @(posedge myRclk or negedge myRrst_n) begin
-  if (!myRrst_n)
-    myRptr <= 0;
-  else
-    myRptr <= myRptrNxt;
-end
+  always @(posedge rclk or negedge rrst_n) begin
+    if (!rrst_n)
+      rptr <= 0;
+    else
+      rptr <= rptr_nxt;
+  end
 
-// Generating write address for myFifoMem
-assign myWbinNxt = myWbin + (myWreq & !myWfull);
+  // Generating write address for FifoMem
+  assign wbin_nxt = wbin + (wreq & !wfull);
 
-always @(posedge myWclk or negedge myWrst_n) begin
-  if (!myWrst_n)
-    myWbin <= 0;
-  else
-    myWbin <= myWbinNxt;
-end
+  always @(posedge wclk or negedge wrst_n) begin
+    if (!wrst_n)
+      wbin <= 0;
+    else
+      wbin <= wbin_nxt;
+  end
 
-assign myWaddr = myWbin [MyArraySize-1:0];
+  assign waddr = wbin [ArraySize-1:0];
 
-// Generating myWptr to send to myRclk domain
-// Convert from binary to gray
-assign myWptrNxt = (myWbinNxt >> 1) ^ myWbinNxt; 
+  // Generating wptr to send to rclk domain
+  // Convert from binary to gray
+  assign wptr_nxt = (wbin_nxt >> 1) ^ wbin_nxt; 
 
-always @(posedge myWclk or negedge myWrst_n) begin
-  if (!myWrst_n)
-    myWptr <= 0;
-  else
-    myWptr <= myWptrNxt;
-end
+  always @(posedge wclk or negedge wrst_n) begin
+    if (!wrst_n)
+      wptr <= 0;
+    else
+      wptr <= wptr_nxt;
+  end
 
-// Generate myWfull condition
-wire myWfullVal;
-assign myWfullVal = (myWd2Rptr == {~myWptr[MyArraySize : MyArraySize-1], myWptr[MyArraySize-2 : 0]});
+  // Generate wfull condition
+  wire wfull_val;
+  assign wfull_val = (wd2rptr == {~wptr[ArraySize : ArraySize-1], wptr[ArraySize-2 : 0]});
 
-always @(posedge myWclk or negedge myWrst_n) begin
-  if (!myWrst_n)
-    myWfull <= 0;
-  else
-    myWfull <= myWfullVal;
-end
+  always @(posedge wclk or negedge wrst_n) begin
+    if (!wrst_n)
+      wfull <= 0;
+    else
+      wfull <= wfull_val;
+  end
 
-// myFifoMem
-// Using Verilog memory model
-localparam MyDepth = (1 << (MyArraySize));
-reg [MyDepthSize-1 : 0] myMem [0: MyDepth -1];
+  // FifoMem
+  // Using Verilog memory model
+  localparam Depth = (1 << (ArraySize));
+  reg [DepthSize-1 : 0] mem [0: Depth -1];
 
-assign myRdata = myMem[myRaddr];
+  assign rdata = mem[raddr];
 
-always @(posedge myWclk) begin
-  if (myWreq & !myWfull)
-    myMem[myWaddr] <= myWdata;
-end
+  always @(posedge wclk) begin
+    if (wreq & !wfull)
+      mem[waddr] <= wdata;
+  end
 
 endmodule
